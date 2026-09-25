@@ -1,0 +1,17 @@
+// Build settings for the Crowd Finder app target.
+//
+// Do NOT put real keys in this file (it is committed to git).
+// Copy Secrets.example.xcconfig to Secrets.xcconfig and put your keys there;
+// Secrets.xcconfig is git-ignored and overrides the empty values below.
+
+// Change this to your own reverse-domain identifier (also used to restrict the Google API key).
+PRODUCT_BUNDLE_IDENTIFIER = com.example.CrowdFinder
+
+// Google Maps Platform key: Maps SDK for iOS + Places API (New). Required.
+GOOGLE_MAPS_API_KEY =
+
+// BestTime.app private key for real foot-traffic data. Optional (the app shows estimates without it).
+// It can also be entered at runtime in the app's Settings screen.
+BESTTIME_API_KEY_PRIVATE =
+
+#include? "Secrets.xcconfig"
