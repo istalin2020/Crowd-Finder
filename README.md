@@ -89,7 +89,7 @@ cd Crowd-Finder
    - **Places API (New)**
 3. Go to **APIs & Services → Credentials → Create credentials → API key**.
 4. Recommended: restrict the key.
-   - **Application restrictions**: *iOS apps*, then add your bundle ID (see step 4).
+   - **Application restrictions**: *iOS apps*, then add the bundle ID `com.istalin.CrowdFinder`.
    - **API restrictions**: *Maps SDK for iOS* and *Places API (New)*.
 
 ### 3. (Optional) Get a BestTime key
@@ -109,7 +109,6 @@ Then edit `Config/Secrets.xcconfig`:
 GOOGLE_MAPS_API_KEY = AIza...your key...
 BESTTIME_API_KEY_PRIVATE = pri_...your key...        (optional)
 DEVELOPMENT_TEAM = ABCDE12345                        (optional, your Apple Team ID)
-PRODUCT_BUNDLE_IDENTIFIER = com.yourname.CrowdFinder (use the same ID in the Google key restriction)
 ```
 
 `Secrets.xcconfig` is git-ignored, so your keys are never committed.
@@ -193,7 +192,7 @@ flowchart LR
 
 ## Security notes
 
-- Restrict your Google key to your bundle ID and the two APIs.
+- Restrict your Google key to the bundle ID `com.istalin.CrowdFinder` and the two APIs.
 - A BestTime key entered in the app is stored in the **iOS Keychain**.
 - For a public App Store release, don't ship a BestTime *private* key inside the app. Send BestTime requests through your own small server instead.
 
@@ -204,7 +203,7 @@ flowchart LR
 | Problem | Fix |
 |---|---|
 | "Add your Google Maps API key" screen | `Config/Secrets.xcconfig` is missing or still has the placeholder. Fix it, then clean and build (⇧⌘K, ⌘R). |
-| Map is blank or grey | Enable **Maps SDK for iOS**, and check that the key's iOS restriction uses the same bundle ID as the app. |
+| Map is blank or grey | Enable **Maps SDK for iOS**, and check that the key's iOS restriction is exactly `com.istalin.CrowdFinder`. |
 | Search says the key is not authorized | Enable **Places API (New)** for the same key. |
 | Every place shows ESTIMATE | Add a BestTime key (Settings), or check the warning banner. It shows problems such as a wrong key or no credits. |
 | Swift packages fail to download | Xcode → File → Packages → **Reset Package Caches**. |

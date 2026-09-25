@@ -4,8 +4,8 @@
 // Copy Secrets.example.xcconfig to Secrets.xcconfig and put your keys there;
 // Secrets.xcconfig is git-ignored and overrides the empty values below.
 
-// Change this to your own reverse-domain identifier (also used to restrict the Google API key).
-PRODUCT_BUNDLE_IDENTIFIER = com.example.CrowdFinder
+// App bundle identifier. The Google Maps API key is restricted to this exact ID (iOS apps restriction).
+PRODUCT_BUNDLE_IDENTIFIER = com.istalin.CrowdFinder
 
 // Google Maps Platform key: Maps SDK for iOS + Places API (New). Required.
 GOOGLE_MAPS_API_KEY =

@@ -143,7 +143,7 @@ struct SetupRequiredView: View {
                 .padding()
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                Text("Tip: restrict the key to your app's bundle identifier and to these two APIs.")
+                Text("Tip: restrict the key to iOS apps with the bundle ID com.istalin.CrowdFinder, and to these two APIs.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
