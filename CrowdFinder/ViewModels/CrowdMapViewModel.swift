@@ -353,6 +353,33 @@ final class CrowdMapViewModel {
         loadLiveData(for: place)
     }
 
+    /// Opens crowd details for any place label tapped on the Google map.
+    func openMapPlace(id placeID: String, name: String, coordinate: Coordinate) {
+        if let existing = places.first(where: { $0.id == placeID }) {
+            select(existing)
+            return
+        }
+        errorMessage = nil
+        let service = crowdService
+        Task {
+            // Look the place up to get its address, type and popularity (used for the crowd level).
+            var place = Place(id: placeID, name: name, address: "", coordinate: coordinate)
+            if let results = try? await placeSearch.search(text: name, near: coordinate, radiusMeters: 1_000),
+               let match = results.first(where: { $0.id == placeID })
+                ?? results.first(where: { $0.coordinate.distance(to: coordinate) < 150 }) {
+                place = match
+            }
+            if !places.contains(where: { $0.id == place.id }) {
+                if places.isEmpty { resultsTitle = "Places you tapped on the map" }
+                places.append(place)
+            }
+            select(place)
+            if reports[place.id] == nil {
+                apply(await service.report(for: place, at: Date(), allowNetwork: true))
+            }
+        }
+    }
+
     func selectPlace(id: String) {
         guard let place = places.first(where: { $0.id == id }) else { return }
         select(place)

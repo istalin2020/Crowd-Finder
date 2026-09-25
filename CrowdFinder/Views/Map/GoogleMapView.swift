@@ -14,6 +14,8 @@ struct GoogleMapView: UIViewRepresentable {
     var onMarkerTap: (String) -> Void
     var onCameraIdle: (Coordinate, Double) -> Void
     var onMapTap: () -> Void
+    /// A Google place label on the map was tapped: place ID, name, position.
+    var onPOITap: (String, String, Coordinate) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -159,6 +161,10 @@ struct GoogleMapView: UIViewRepresentable {
 
         func mapView(_ mapView: GMSMapView, didTapAt coordinate: CLLocationCoordinate2D) {
             parent.onMapTap()
+        }
+
+        func mapView(_ mapView: GMSMapView, didTapPOIWithPlaceID placeID: String, name: String, location: CLLocationCoordinate2D) {
+            parent.onPOITap(placeID, name, Coordinate(location))
         }
 
         func mapView(_ mapView: GMSMapView, idleAt position: GMSCameraPosition) {

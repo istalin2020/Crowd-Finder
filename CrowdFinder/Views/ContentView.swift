@@ -25,7 +25,11 @@ struct ContentView: View {
                         model.selectPlace(id: id)
                     },
                     onCameraIdle: { center, radius in model.mapCameraChanged(center: center, radius: radius) },
-                    onMapTap: { isSearchFocused = false }
+                    onMapTap: { isSearchFocused = false },
+                    onPOITap: { placeID, name, coordinate in
+                        isSearchFocused = false
+                        model.openMapPlace(id: placeID, name: name, coordinate: coordinate)
+                    }
                 )
                 .ignoresSafeArea()
 
