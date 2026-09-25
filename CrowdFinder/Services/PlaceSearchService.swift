@@ -40,14 +40,17 @@ struct GooglePlaceSearchService: PlaceSearching {
             )
         }
 
+        // `searchByText(with:completion:)` replaces the deprecated `searchByText(with:callback:)`
+        // and returns a `GMSPlaceSearchByTextResponse` that holds the places.
         return try await withCheckedThrowingContinuation { continuation in
-            GMSPlacesClient.shared().searchByText(with: request) { results, error in
+            GMSPlacesClient.shared().searchByText(with: request, completion: { response, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
+                    let results: [GMSPlace]? = response?.places
                     continuation.resume(returning: (results ?? []).compactMap(Place.init(gmsPlace:)))
                 }
-            }
+            })
         }
     }
 }

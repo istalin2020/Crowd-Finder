@@ -20,7 +20,7 @@ struct GoogleMapView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> GMSMapView {
-        var options = GMSMapViewOptions()
+        let options = GMSMapViewOptions()
         // World view until we know where the user is or what they searched.
         options.camera = GMSCameraPosition(latitude: 20, longitude: 20, zoom: 1.8)
 
