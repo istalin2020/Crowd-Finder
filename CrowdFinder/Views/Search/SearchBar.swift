@@ -125,3 +125,44 @@ struct SearchSuggestions: View {
         .buttonStyle(.plain)
     }
 }
+
+/// Live "search as you type" suggestions, like the Google Maps search box.
+struct LiveSuggestionList: View {
+    let suggestions: [SearchSuggestion]
+    let onSelect: (SearchSuggestion) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(suggestions) { suggestion in
+                Button {
+                    onSelect(suggestion)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(suggestion.title)
+                                .font(.body)
+                                .lineLimit(1)
+                            if !suggestion.subtitle.isEmpty {
+                                Text(suggestion.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingPanel()
+    }
+}

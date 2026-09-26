@@ -1,17 +1,61 @@
 import CoreLocation
 import GooglePlaces
 
+/// Which search engine produced the results.
+enum SearchEngine: String {
+    case google = "Google Maps"
+    case apple = "Apple Maps"
+}
+
+struct PlaceSearchResult {
+    var places: [Place]
+    var engine: SearchEngine
+    /// Why Google Places gave no results (an error message, or "no results"), if it didn't.
+    var googleIssue: String?
+}
+
 /// Finds places for a text query.
 protocol PlaceSearching {
     @MainActor
-    func search(text: String, near center: Coordinate?, radiusMeters: Double) async throws -> [Place]
+    func search(text: String, near center: Coordinate?, radiusMeters: Double) async throws -> PlaceSearchResult
+}
+
+/// Searches Google Places first (same place data as Google Maps). If Google returns nothing
+/// or fails, it falls back to Apple Maps search, so the user always gets results.
+struct SmartPlaceSearchService: PlaceSearching {
+    private let google = GooglePlaceSearchService()
+    private let apple = AppleMapsSearchService()
+
+    @MainActor
+    func search(text: String, near center: Coordinate?, radiusMeters: Double) async throws -> PlaceSearchResult {
+        let googleIssue: String
+        let googleError: Error?
+        do {
+            let places = try await google.search(text: text, near: center, radiusMeters: radiusMeters)
+            if !places.isEmpty {
+                return PlaceSearchResult(places: places, engine: .google, googleIssue: nil)
+            }
+            googleIssue = "Google Places returned no results."
+            googleError = nil
+        } catch {
+            googleError = error
+            googleIssue = "Google Places error: \(error.localizedDescription)"
+        }
+        try Task.checkCancellation()
+
+        let places = await apple.search(text: text, near: center, radiusMeters: radiusMeters)
+        if places.isEmpty, let googleError {
+            throw googleError // nothing anywhere: show the real Google problem
+        }
+        return PlaceSearchResult(places: places, engine: .apple, googleIssue: googleIssue)
+    }
 }
 
 /// Text Search through the Places SDK for iOS (Places API "Text Search (New)").
 ///
 /// Using the SDK (instead of calling the web service directly) means the API key can be
 /// restricted to this app's bundle identifier, as Google recommends for mobile apps.
-struct GooglePlaceSearchService: PlaceSearching {
+struct GooglePlaceSearchService {
 
     /// Only the fields the app needs. Fewer fields = lower Places API cost.
     /// `rating` and `userRatingsTotal` are used as a popularity signal for crowd estimates.

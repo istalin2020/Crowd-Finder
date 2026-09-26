@@ -75,6 +75,10 @@ final class CrowdMapViewModel {
     /// Set when the user searched a city or area; quick searches then stay inside it.
     private(set) var areaContext: Place?
     var errorMessage: String?
+    /// Which engine answered, and why Google didn't (helps diagnose key / API problems).
+    private(set) var searchNote: String?
+    /// "Search as you type" suggestions.
+    let suggestions = SearchSuggestionProvider()
     private(set) var recentSearches: [String]
 
     // MARK: Crowd state
@@ -106,7 +110,7 @@ final class CrowdMapViewModel {
     /// Parallel BestTime requests per batch (keeps the app responsive and polite to the API).
     private static let crowdBatchSize = 4
 
-    init(placeSearch: PlaceSearching = GooglePlaceSearchService(), bestTimeKey: String? = BestTimeKeyStore.currentKey) {
+    init(placeSearch: PlaceSearching = SmartPlaceSearchService(), bestTimeKey: String? = BestTimeKeyStore.currentKey) {
         self.placeSearch = placeSearch
         self.crowdService = Self.makeCrowdService(bestTimeKey: bestTimeKey)
         self.usesRealData = bestTimeKey != nil
@@ -167,8 +171,19 @@ final class CrowdMapViewModel {
         let text = (query ?? searchText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         searchText = text
+        suggestions.clear()
         remember(text)
         runSearch(text: text, title: "Results for “\(text)”", center: mapCenter, radius: mapRadius, isQuickSearch: false)
+    }
+
+    /// Call while the user types to refresh the suggestion list.
+    func searchTextChanged(_ text: String) {
+        suggestions.update(query: text, near: mapCenter)
+    }
+
+    func choose(_ suggestion: SearchSuggestion) {
+        search(suggestion.query)
+        searchText = suggestion.title
     }
 
     /// Quick searches stay inside the searched city, or around the visible map area.
@@ -194,6 +209,8 @@ final class CrowdMapViewModel {
         resultsTitle = nil
         areaContext = nil
         errorMessage = nil
+        searchNote = nil
+        suggestions.clear()
         selectedPlaceID = nil
         hourOffset = 0
         isSearching = false
@@ -209,11 +226,13 @@ final class CrowdMapViewModel {
         crowdTask?.cancel()
         isSearching = true
         errorMessage = nil
+        searchNote = nil
 
         searchTask = Task {
             do {
-                var results = try await placeSearch.search(text: text, near: center, radiusMeters: radius)
+                var result = try await placeSearch.search(text: text, near: center, radiusMeters: radius)
                 try Task.checkCancellation()
+                var results = result.places
                 var newTitle = title
                 var newArea = isQuickSearch ? areaContext : nil
 
@@ -222,15 +241,19 @@ final class CrowdMapViewModel {
                     newArea = area
                     newTitle = "Popular places in \(area.name)"
                     cameraCommand = .focus(area.coordinate, zoom: area.suggestedZoom)
-                    results = try await placeSearch.search(
+                    result = try await placeSearch.search(
                         text: "top tourist attractions in \(area.name)",
                         near: area.coordinate,
                         radiusMeters: 20_000
                     )
                     try Task.checkCancellation()
+                    results = result.places
                 }
 
                 show(results, title: newTitle, area: newArea)
+                if result.engine == .apple, !results.isEmpty {
+                    searchNote = "Results from Apple Maps. \(result.googleIssue ?? "")"
+                }
                 if results.isEmpty {
                     errorMessage = "No places found for “\(text)”. Try a different name, or add the city (e.g. “parks in Chennai”)."
                 }
@@ -364,7 +387,7 @@ final class CrowdMapViewModel {
         Task {
             // Look the place up to get its address, type and popularity (used for the crowd level).
             var place = Place(id: placeID, name: name, address: "", coordinate: coordinate)
-            if let results = try? await placeSearch.search(text: name, near: coordinate, radiusMeters: 1_000),
+            if let results = try? await placeSearch.search(text: name, near: coordinate, radiusMeters: 1_000).places,
                let match = results.first(where: { $0.id == placeID })
                 ?? results.first(where: { $0.coordinate.distance(to: coordinate) < 150 }) {
                 place = match

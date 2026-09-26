@@ -18,7 +18,11 @@ Search any place or city, and the map shows how busy each place is, with colored
 
 ## Features
 
-- **Search bar**: search for a place (`Marina Beach`, `Eiffel Tower`) or a whole **city** (`Chennai`). For a city, the app shows the crowd at its popular places.
+- **Search bar** (works like the Google Maps search box):
+  - suggestions appear **as you type**,
+  - search for any place or restaurant (`Marina Beach`, `Malabar Days Restaurant`) or a whole **city** (`Chennai`). For a city, the app shows the crowd at its popular places,
+  - **two search engines**: Google Places first, then **Apple Maps** automatically if Google finds nothing. A note tells you which engine answered, and Google's error message if it failed.
+- **Tap any place on the Google map** (for example a mall or beach label) to see its crowd.
 - **Google Map with crowd markers**: each pin shows the crowd %, colored by level, with a colored "crowd aura" circle that gets bigger when the place is busier.
 - **Quick searches**: tourist spots, restaurants, cafés, malls, parks, beaches, places of worship, stations, gyms and hospitals, near you or inside the city you searched.
 - **Time travel**: see the crowd **now**, or in +1 h, +2 h … +12 h.
@@ -205,6 +209,7 @@ flowchart LR
 | "Add your Google Maps API key" screen | `Config/Secrets.xcconfig` is missing or still has the placeholder. Fix it, then clean and build (⇧⌘K, ⌘R). |
 | Map is blank or grey | Enable **Maps SDK for iOS**, and check that the key's iOS restriction is exactly `com.istalin.CrowdFinder`. |
 | Search says the key is not authorized | Enable **Places API (New)** for the same key. |
+| Note "Results from Apple Maps. Google Places …" | Google search failed or found nothing. The note shows Google's message. Check that **Places API (New)** is enabled and allowed in the key's API restrictions. |
 | Every place shows ESTIMATE | Add a BestTime key (Settings), or check the warning banner. It shows problems such as a wrong key or no credits. |
 | Swift packages fail to download | Xcode → File → Packages → **Reset Package Caches**. |
 

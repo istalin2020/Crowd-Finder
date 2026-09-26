@@ -56,6 +56,9 @@ struct ContentView: View {
         .onChange(of: location.lastLocation) { _, newLocation in
             if let newLocation { model.userLocationUpdated(newLocation) }
         }
+        .onChange(of: model.searchText) { _, text in
+            if isSearchFocused { model.searchTextChanged(text) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.refreshIfStale() }
         }
@@ -79,7 +82,12 @@ struct ContentView: View {
                 onSettings: { showSettings = true }
             )
 
-            if isSearchFocused {
+            if isSearchFocused, !model.suggestions.suggestions.isEmpty {
+                LiveSuggestionList(suggestions: model.suggestions.suggestions) { suggestion in
+                    isSearchFocused = false
+                    model.choose(suggestion)
+                }
+            } else if isSearchFocused {
                 SearchSuggestions(
                     recentSearches: model.recentSearches,
                     onSelect: { query in
@@ -96,6 +104,8 @@ struct ContentView: View {
                 MessageBanner(text: message, symbol: "exclamationmark.magnifyingglass") {
                     model.errorMessage = nil
                 }
+            } else if let note = model.searchNote {
+                MessageBanner(text: note, symbol: "info.circle") {}
             } else if let problem = model.accountProblem {
                 MessageBanner(text: "BestTime: \(problem) Showing estimates.", symbol: "exclamationmark.triangle.fill") {
                     showSettings = true
