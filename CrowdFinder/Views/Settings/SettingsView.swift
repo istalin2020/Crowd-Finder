@@ -14,11 +14,12 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Status") {
-                        Label(model.supportsLiveReports ? "On" : "Off",
-                              systemImage: model.supportsLiveReports ? "dot.radiowaves.left.and.right" : "pause.circle")
-                            .foregroundStyle(model.supportsLiveReports ? CrowdLevel.quiet.color : .secondary)
-                    }
+                    statusRow(
+                        "Status",
+                        value: model.supportsLiveReports ? "On" : "Off",
+                        symbol: model.supportsLiveReports ? "dot.radiowaves.left.and.right" : "pause.circle",
+                        color: model.supportsLiveReports ? CrowdLevel.quiet.color : .secondary
+                    )
                     if let problem = model.communityProblem {
                         Label(problem, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(CrowdLevel.busy.color)
@@ -38,11 +39,12 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Crowd data") {
-                        Label(model.usesRealData ? "BestTime (real data)" : "Estimates only",
-                              systemImage: model.usesRealData ? "checkmark.seal.fill" : "wand.and.stars")
-                            .foregroundStyle(model.usesRealData ? CrowdLevel.quiet.color : .secondary)
-                    }
+                    statusRow(
+                        "Crowd data",
+                        value: model.usesRealData ? "BestTime (real data)" : "Estimates only",
+                        symbol: model.usesRealData ? "checkmark.seal.fill" : "wand.and.stars",
+                        color: model.usesRealData ? CrowdLevel.quiet.color : .secondary
+                    )
                     if let problem = model.accountProblem {
                         Label(problem, systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(CrowdLevel.busy.color)
@@ -132,6 +134,19 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+
+    /// "Title ........ ◉ Value" on one line. (A Label inside LabeledContent made rows very tall.)
+    private func statusRow(_ title: String, value: String, symbol: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+            Spacer(minLength: 8)
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+            Text(value)
+                .lineLimit(1)
+                .foregroundStyle(color)
         }
     }
 
