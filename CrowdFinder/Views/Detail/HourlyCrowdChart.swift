@@ -1,73 +1,75 @@
 import SwiftUI
-import Charts
 
-/// Bar chart of one day's crowd pattern (6 AM → 5 AM), like Google's "Popular times".
+/// One day's crowd pattern (6 AM → 5 AM next morning), one row per hour.
+///
+/// A row per hour keeps every time label readable on a phone; 24 labels side by side
+/// under a bar chart don't fit and overlap.
 struct HourlyCrowdChart: View {
     let hours: [HourValue]
     /// Clock hour to highlight ("now"), if the chart shows today.
     let currentHour: Int?
-    /// Live value to draw on top of the current hour.
+    /// Live value for the current hour, if any.
     let liveBusyness: Int?
 
-    private static let labeledHours: Set<Int> = [6, 9, 12, 15, 18, 21, 0, 3]
-
-    private var yMax: Int { max(100, liveBusyness ?? 0, hours.map(\.busyness).max() ?? 0) }
+    /// 100 % fills the bar; live values above 100 % are capped visually.
+    private var scale: Double { Double(max(100, hours.map(\.busyness).max() ?? 0)) }
 
     var body: some View {
-        Chart {
+        VStack(spacing: 2) {
             ForEach(hours, id: \.hour) { item in
-                BarMark(
-                    x: .value("Hour", label(item.hour)),
-                    y: .value("Busyness", item.busyness)
-                )
-                .foregroundStyle(CrowdLevel(busyness: item.busyness).color)
-                .opacity(currentHour == nil || currentHour == item.hour ? 1 : 0.55)
-                .cornerRadius(3)
-                .accessibilityLabel(label(item.hour))
-                .accessibilityValue("\(item.busyness) percent, \(CrowdLevel(busyness: item.busyness).title)")
-            }
-
-            if let currentHour {
-                RuleMark(x: .value("Hour", label(currentHour)))
-                    .foregroundStyle(Color.primary.opacity(0.35))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .annotation(position: .top, alignment: .center) {
-                        Text(liveBusyness == nil ? "Now" : "Live \(liveBusyness ?? 0)%")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(liveBusyness == nil ? Color.secondary : CrowdDataSource.live.color)
-                    }
-            }
-
-            if let currentHour, let liveBusyness {
-                PointMark(
-                    x: .value("Hour", label(currentHour)),
-                    y: .value("Busyness", liveBusyness)
-                )
-                .symbol(.circle)
-                .symbolSize(70)
-                .foregroundStyle(CrowdDataSource.live.color)
-                .accessibilityLabel("Live now")
-                .accessibilityValue("\(liveBusyness) percent")
+                row(for: item)
             }
         }
-        .chartYScale(domain: 0...yMax)
-        .chartXAxis {
-            AxisMarks(values: hours.filter { Self.labeledHours.contains($0.hour) }.map { label($0.hour) }) { _ in
-                AxisValueLabel()
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: [0, 50, 100]) { value in
-                AxisGridLine()
-                AxisValueLabel {
-                    if let percent = value.as(Int.self) { Text("\(percent)%") }
-                }
-            }
-        }
-        .frame(height: 170)
     }
 
-    private func label(_ hour: Int) -> String {
-        HourFormatter.string(for: hour)
+    private func row(for item: HourValue) -> some View {
+        let isNow = item.hour == currentHour
+        let value = isNow ? (liveBusyness ?? item.busyness) : item.busyness
+        let level = CrowdLevel(busyness: value)
+        let isLive = isNow && liveBusyness != nil
+
+        return HStack(spacing: 10) {
+            Text(HourFormatter.string(for: item.hour))
+                .font(.caption.weight(isNow ? .bold : .regular))
+                .monospacedDigit()
+                .frame(width: 56, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.12))
+                    Capsule()
+                        .fill(level.color.opacity(isNow || currentHour == nil ? 1 : 0.75))
+                        .frame(width: proxy.size.width * min(1, Double(value) / scale))
+                }
+            }
+            .frame(height: isNow ? 14 : 10)
+
+            Group {
+                if isNow {
+                    Text(isLive ? "Live \(value)%" : "Now \(value)%")
+                        .foregroundStyle(isLive ? CrowdDataSource.live.color : .primary)
+                        .fontWeight(.bold)
+                } else {
+                    Text(value == 0 ? "–" : "\(value)%")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption)
+            .monospacedDigit()
+            .frame(width: 72, alignment: .leading)
+            .lineLimit(1)
+        }
+        .padding(.vertical, isNow ? 5 : 2)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isNow ? level.color.opacity(0.15) : Color.clear)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(HourFormatter.string(for: item.hour))
+        .accessibilityValue(value == 0 ? "Usually empty" : "\(value) percent, \(level.title)\(isLive ? ", live" : "")")
     }
 }
