@@ -17,6 +17,7 @@ struct PlaceDetailView: View {
                     header
                     if let report {
                         statusCard(report)
+                        LiveReportSection(place: place, model: model)
                         adviceCard(report)
                         if report.forecast != nil {
                             chartCard(report)
@@ -44,7 +45,7 @@ struct PlaceDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if model.usesRealData {
+                    if model.usesRealData || model.supportsLiveReports {
                         Button {
                             model.loadLiveData(for: place)
                         } label: {
@@ -108,6 +109,11 @@ struct PlaceDetailView: View {
                     Text(liveComparison(delta: delta, usual: usual))
                         .font(.subheadline)
                 }
+                if !report.source.isLive {
+                    Label("Usual for this hour – not a live count", systemImage: "exclamationmark.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(CrowdLevel.busy.color)
+                }
                 if report.clock.differsFromDevice(at: now) {
                     Label("Local time \(report.clock.localTimeString(at: now))", systemImage: "globe")
                         .font(.caption)
@@ -139,6 +145,11 @@ struct PlaceDetailView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(advice.headline).font(.headline)
                 Text(advice.detail).font(.subheadline).foregroundStyle(.secondary)
+                if !report.source.isLive {
+                    Text("Based on the usual pattern. Events (shows, festivals) are only seen in live reports.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -168,7 +179,7 @@ struct PlaceDetailView: View {
                 HourlyCrowdChart(
                     hours: forecast.dayWindow(weekday: weekday),
                     currentHour: isToday ? localHour.hour : nil,
-                    liveBusyness: isToday && report.source == .live ? report.currentBusyness : nil
+                    liveBusyness: isToday && report.source.isLive ? report.currentBusyness : nil
                 )
                 if let quiet = forecast.dayWindow(weekday: weekday).filter({ $0.busyness > 0 }).min(by: { $0.busyness < $1.busyness }),
                    let peak = forecast.dayWindow(weekday: weekday).max(by: { $0.busyness < $1.busyness }), peak.busyness > 0 {
@@ -219,6 +230,7 @@ struct PlaceDetailView: View {
 
     private func liveComparison(delta: Int, usual: Int) -> String {
         switch delta {
+        case 40...: "Much busier than usual – maybe an event (usually \(usual)% now)"
         case 6...: "Busier than usual (usually \(usual)% now)"
         case ...(-6): "Quieter than usual (usually \(usual)% now)"
         default: "About as busy as usual"

@@ -52,7 +52,14 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(model: model)
         }
-        .task { location.requestLocation() }
+        .task {
+            location.requestLocation()
+            model.startLiveUpdates()
+        }
+        .onChange(of: model.detailPlace) { _, place in
+            // Fresh position, so "you're at this place" checks for live reports are accurate.
+            if place != nil { location.requestLocation() }
+        }
         .onChange(of: location.lastLocation) { _, newLocation in
             if let newLocation { model.userLocationUpdated(newLocation) }
         }
@@ -60,7 +67,15 @@ struct ContentView: View {
             if isSearchFocused { model.searchTextChanged(text) }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.refreshIfStale() }
+            switch phase {
+            case .active:
+                model.refreshIfStale()
+                model.startLiveUpdates()
+            case .background:
+                model.stopLiveUpdates()
+            default:
+                break
+            }
         }
     }
 

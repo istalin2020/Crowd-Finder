@@ -11,6 +11,14 @@ enum AppConfig {
     /// Optional BestTime private key bundled at build time.
     static var bundledBestTimeKey: String? { infoValue(bestTimeKeyInfoKey) }
 
+    /// Google Cloud project that stores live crowd reports (Cloud Firestore).
+    /// The value entered in Settings wins over the build setting.
+    static var firebaseProjectID: String? {
+        cleaned(UserDefaults.standard.string(forKey: firebaseProjectIDDefaultsKey)) ?? infoValue("FirebaseProjectID")
+    }
+
+    static let firebaseProjectIDDefaultsKey = "firebaseProjectID"
+
     static var appVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"

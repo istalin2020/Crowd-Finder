@@ -14,8 +14,7 @@ struct PlaceCard: View {
     /// Future hours come from the forecast (live data only exists for "now").
     private var displayedSource: CrowdDataSource? {
         guard let report else { return nil }
-        if hourOffset == 0 || report.source == .estimate { return report.source }
-        return .forecast
+        return hourOffset == 0 ? report.source : report.patternSource
     }
 
     var body: some View {
@@ -57,7 +56,7 @@ struct PlaceCard: View {
                 if let level {
                     Image(systemName: level.adviceSymbolName)
                         .foregroundStyle(level.color)
-                    Text(hourOffset == 0 ? level.advice : "In \(hourOffset) h: \(level.title.lowercased())")
+                    Text(adviceText(for: level))
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -77,6 +76,21 @@ struct PlaceCard: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityHint("Shows crowd details")
+    }
+
+    /// Only live data may say "go now"; the usual pattern is described as usual.
+    private func adviceText(for level: CrowdLevel) -> String {
+        if hourOffset > 0 { return "In \(hourOffset) h: usually \(level.title.lowercased())" }
+        guard let report else { return level.advice }
+        switch report.source {
+        case .community:
+            let count = report.liveSummary?.reportCount ?? 1
+            return "Live: \(level.title.lowercased()) · \(count) report\(count == 1 ? "" : "s")"
+        case .live:
+            return "Live: \(level.advice.lowercased())"
+        case .forecast, .estimate:
+            return "Usually \(level.title.lowercased()) now · not live"
+        }
     }
 
     private func ratingText(_ rating: Double) -> String {

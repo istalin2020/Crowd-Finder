@@ -22,7 +22,7 @@ extension CrowdLevel {
 extension CrowdDataSource {
     var color: Color {
         switch self {
-        case .live: Color(uiColor: UIColor(hex: 0xD93025))
+        case .community, .live: Color(uiColor: UIColor(hex: 0xD93025))
         case .forecast: Color(uiColor: UIColor(hex: 0x1A73E8))
         case .estimate: .secondary
         }
@@ -30,9 +30,10 @@ extension CrowdDataSource {
 
     var symbolName: String {
         switch self {
+        case .community: "person.3.fill"
         case .live: "dot.radiowaves.left.and.right"
         case .forecast: "chart.bar.fill"
-        case .estimate: "wand.and.stars"
+        case .estimate: "clock.arrow.circlepath"
         }
     }
 }

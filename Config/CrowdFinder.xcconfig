@@ -14,4 +14,8 @@ GOOGLE_MAPS_API_KEY =
 // It can also be entered at runtime in the app's Settings screen.
 BESTTIME_API_KEY_PRIVATE =
 
+// Google Cloud / Firebase project ID for live crowd reports (Cloud Firestore). Optional, not a secret.
+// It can also be entered in the app's Settings screen. See README → "Live crowd reports".
+FIREBASE_PROJECT_ID =
+
 #include? "Secrets.xcconfig"

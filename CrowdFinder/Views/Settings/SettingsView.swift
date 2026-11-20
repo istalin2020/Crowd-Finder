@@ -8,10 +8,35 @@ struct SettingsView: View {
     @State private var keyInput = ""
     @State private var hasSavedKey = BestTimeKeyStore.userKey != nil
     @State private var cacheCleared = false
+    @State private var projectIDInput = UserDefaults.standard.string(forKey: AppConfig.firebaseProjectIDDefaultsKey) ?? ""
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    LabeledContent("Status") {
+                        Label(model.supportsLiveReports ? "On" : "Off",
+                              systemImage: model.supportsLiveReports ? "dot.radiowaves.left.and.right" : "pause.circle")
+                            .foregroundStyle(model.supportsLiveReports ? CrowdLevel.quiet.color : .secondary)
+                    }
+                    if let problem = model.communityProblem {
+                        Label(problem, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(CrowdLevel.busy.color)
+                    }
+                    TextField("Google Cloud project ID (e.g. crowd-finder-123456)", text: $projectIDInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button("Save project ID") {
+                        let value = AppConfig.cleaned(projectIDInput)
+                        UserDefaults.standard.set(value, forKey: AppConfig.firebaseProjectIDDefaultsKey)
+                        model.reloadCrowdSource()
+                    }
+                } header: {
+                    Text("Live crowd reports")
+                } footer: {
+                    Text("People at a place tap how crowded it is, and everyone sees it within a minute. This is the only way to catch events like shows or festivals. Reports are stored in Cloud Firestore in your Google Cloud project; setup takes about 5 minutes (see README → Live crowd reports).")
+                }
+
                 Section {
                     LabeledContent("Crowd data") {
                         Label(model.usesRealData ? "BestTime (real data)" : "Estimates only",
@@ -85,7 +110,7 @@ struct SettingsView: View {
                     Text("100 % means as busy as the place's busiest hour of a normal week. Live values can go above 100 %.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    ForEach([CrowdDataSource.live, .forecast, .estimate], id: \.self) { source in
+                    ForEach([CrowdDataSource.community, .live, .forecast, .estimate], id: \.self) { source in
                         VStack(alignment: .leading, spacing: 4) {
                             SourceBadge(source: source)
                             Text(source.explanation).font(.footnote).foregroundStyle(.secondary)

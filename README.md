@@ -34,7 +34,11 @@ Search any place or city, and the map shows how busy each place is, with colored
   - live data compared with usual levels
   - the place's local time
   - Directions, Open in Google Maps, and Share
-- **Honest data labels**: every number is marked **LIVE**, **FORECAST** or **ESTIMATE**.
+- **Live crowd reports from visitors** (like Waze for crowds): people at a place tap *Quiet / Moderate / Busy / Very busy*, and everyone sees it within a minute. This catches events such as shows, festivals and holidays, which no pattern can predict.
+  - Only people within 1.5 km of the place can report, at most once every 10 minutes.
+  - *Measure around me* counts nearby Bluetooth devices as a rough guide.
+  - The app refreshes live data every minute while open, and markers with live data show a red dot.
+- **Honest data labels**: every number is marked **LIVE REPORTS**, **LIVE**, **FORECAST** or **USUAL · NOT LIVE**.
 - Works in light and dark mode, with VoiceOver labels.
 
 ---
@@ -50,20 +54,24 @@ So Crowd Finder uses:
 |---|---|---|
 | Map | [Google Maps SDK for iOS](https://github.com/googlemaps/ios-maps-sdk) 11.2 | Yes |
 | Place search | [Google Places SDK for iOS](https://github.com/googlemaps/ios-places-sdk) 11.1 (Text Search, New) | Yes (same Google key) |
+| Live crowd right now | **Live reports from visitors**, shared through [Cloud Firestore](https://firebase.google.com/docs/firestore) in your Google Cloud project | Optional (recommended) |
 | Real crowd data | [BestTime.app](https://besttime.app) foot-traffic API: weekly forecasts and live busyness | Optional |
 | Fallback | On-device **estimate** from typical patterns | Built in |
 
 The app always picks the best source available for each place:
 
-1. **LIVE**: BestTime live busyness right now. Loaded when you open a place.
-2. **FORECAST**: BestTime's forecast for this hour, based on historical foot traffic. Saved on the device for 7 days.
-3. **ESTIMATE**: used when there is no BestTime key, no data for the venue, or no network. It uses:
+1. **LIVE REPORTS**: what people at the place reported in the last 90 minutes. Newer reports count more (a report's weight halves every 30 minutes). This is the only source that sees one-off events, such as a drone show.
+2. **LIVE**: BestTime live busyness. It only covers select high-traffic venues and updates about hourly ([BestTime docs](https://documentation.besttime.app/)).
+3. **FORECAST**: BestTime's forecast for this hour, based on historical foot traffic. Saved on the device for 7 days.
+4. **USUAL · NOT LIVE** (estimate): used when there is no live data. It uses:
    - the typical daily pattern for the type of place (for example, restaurants peak at lunch and dinner, and stations peak at rush hour),
    - the day of the week,
    - the place's popularity (number of Google reviews),
    - the place's **local** time.
 
-   Estimates are clearly labelled. They are a guide, not a measurement.
+   Estimates are clearly labelled as *usual, not live*. They cannot know about events.
+
+> **Why live reports?** Google keeps its own live busyness data inside the Google Maps app, and its Places API offers no crowd field. BestTime's live data covers only some busy venues. So a real-time crowd for *any* place, including a one-evening event, can only come from people who are there now.
 
 ---
 
@@ -184,11 +192,30 @@ flowchart LR
 
 ---
 
+## Live crowd reports (about 5 minutes, recommended)
+
+Reports are stored in **Cloud Firestore**, in the same Google Cloud project as your Maps key.
+
+1. Open **https://console.firebase.google.com** → **Create a project** → choose your existing Google Cloud project (*Crowd Finder*). You can turn Google Analytics off.
+2. Go to **Build → Firestore Database → Create database**. Choose **production mode** and a location near you.
+3. Open the **Rules** tab, replace everything with the contents of [`Config/firestore.rules`](Config/firestore.rules), then click **Publish**.
+4. Copy your **Project ID** from **Project settings** (for example `crowd-finder-123456`).
+5. In the app, tap **⚙️ → Live crowd reports**, paste the Project ID, and tap **Save**. Or set `FIREBASE_PROJECT_ID` in `Config/Secrets.xcconfig`.
+
+Then open any place while you're there and tap how crowded it is. Everyone using the app sees it within a minute.
+
+**How reports are protected:**
+- The rules allow only a level (1–4) and a **server** timestamp, so times can't be faked. Reports can't be edited or deleted.
+- The app only lets people within 1.5 km of a place report, once every 10 minutes per place.
+- Reports are anonymous: no name, account or location is stored.
+- For a public App Store release, also add [Firebase App Check](https://firebase.google.com/docs/app-check) to block requests that don't come from your app.
+
 ## Costs and credits
 
 - **Google**: map loads and Places Text Search are billed by Google Maps Platform. See the [official pricing](https://mapsplatform.google.com/pricing/).
   - The app requests only the fields it needs.
   - `rating` and `userRatingsTotal` (used as a popularity signal) put Text Search in a higher billing tier. To use the cheaper tier, remove them in `Services/PlaceSearchService.swift`. Estimates then use a default popularity.
+- **Firestore (live reports)**: each report is one write and each refresh is about one read per place. Firestore includes a free daily quota (see [Firestore pricing](https://cloud.google.com/firestore/pricing)), which is plenty for personal use.
 - **BestTime**: each *new* venue forecast uses credits. To save credits:
   - only the top results of a search load real data automatically (8 by default; change it in **Settings → Credit saver**),
   - forecasts are cached for 7 days,
@@ -210,14 +237,18 @@ flowchart LR
 | Map is blank or grey | Enable **Maps SDK for iOS**, and check that the key's iOS restriction is exactly `com.istalin.CrowdFinder`. |
 | Search says the key is not authorized | Enable **Places API (New)** for the same key. |
 | Note "Results from Apple Maps. Google Places …" | Google search failed or found nothing. The note shows Google's message. Check that **Places API (New)** is enabled and allowed in the key's API restrictions. |
-| Every place shows ESTIMATE | Add a BestTime key (Settings), or check the warning banner. It shows problems such as a wrong key or no credits. |
+| Every place shows USUAL · NOT LIVE | No live reports yet. Set up live reports (above), and/or add a BestTime key (Settings). |
+| Settings → Live crowd reports shows "Missing or insufficient permissions" | The Firestore rules were not published. Paste `Config/firestore.rules` and click **Publish**. |
+| … shows "The database (default) does not exist" | Create the Firestore database (step 2), or check the Project ID. |
+| "You're 12 km away" when reporting | Reports can only be sent from the place. Check that location access is on for Crowd Finder. |
 | Swift packages fail to download | Xcode → File → Packages → **Reset Package Caches**. |
 
 ---
 
 ## Testing
 
-- The `CrowdFinderTests` target has **46 unit tests**. They cover:
+- The `CrowdFinderTests` target has **62 unit tests**. They cover:
+  - live visitor reports: weighting, the 90-minute window, the Firestore request/response formats, server timestamps, caching and error messages,
   - crowd levels and categories,
   - the BestTime 6 AM day window, JSON parsing and error handling (with a stubbed network),
   - cache and fallback behaviour,
@@ -238,5 +269,8 @@ flowchart LR
 - Places API (New) definitions. <https://github.com/googleapis/googleapis/tree/master/google/maps/places/v1>
 - Google Maps Platform security guidance. <https://developers.google.com/maps/api-security-best-practices>
 - Google Maps URLs. <https://developers.google.com/maps/documentation/urls/get-started>
-- BestTime API reference. <https://documentation.besttime.app>
+- BestTime API reference (live data covers select high-traffic venues). <https://documentation.besttime.app>
+- Cloud Firestore v1 API definitions (runQuery, commit, server timestamps). <https://github.com/googleapis/googleapis/tree/master/google/firestore/v1>
+- Firestore REST API and security rules for unauthenticated requests. <https://firebase.google.com/docs/firestore/use-rest-api>
+- Official Firestore rules examples (`keys().hasOnly`, `== request.time`). <https://github.com/firebase/quickstart-testing>
 - BestTime official examples. <https://github.com/besttime-app/examples>

@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Cloud Firestore security rules for Crowd Finder live crowd reports.
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+//
+// - Anyone can READ reports (they are anonymous: only a level and a time).
+// - Anyone can CREATE a report, but only with:
+//     level     = 1 (quiet), 2 (moderate), 3 (busy) or 4 (very busy)
+//     createdAt = the server's time (the app uses a server timestamp), so times can't be faked
+//   and no other fields.
+// - Nobody can change or delete reports. Everything else in the database is closed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /crowdPlaces/{placeId}/reports/{reportId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['level', 'createdAt'])
+                    && request.resource.data.level in [1, 2, 3, 4]
+                    && request.resource.data.createdAt == request.time;
+    }
+  }
+}

@@ -104,6 +104,7 @@ struct GoogleMapView: UIViewRepresentable {
                 category: annotation.category,
                 busyness: annotation.busyness,
                 isSelected: annotation.isSelected,
+                isLive: annotation.isLive,
                 scale: scale
             )
             marker.icon = icon

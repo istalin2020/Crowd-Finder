@@ -6,5 +6,9 @@
 	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<key>BestTimeAPIKeyPrivate</key>
 	<string>$(BESTTIME_API_KEY_PRIVATE)</string>
+	<key>FirebaseProjectID</key>
+	<string>$(FIREBASE_PROJECT_ID)</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Crowd Finder can count nearby Bluetooth devices to help you judge how crowded a place is. Nothing is stored or shared.</string>
 </dict>
 </plist>

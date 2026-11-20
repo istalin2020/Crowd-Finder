@@ -6,6 +6,7 @@ struct CrowdMarkerView: View {
     let category: PlaceCategory
     let busyness: Int?
     let isSelected: Bool
+    var isLive = false
 
     static let shadowPadding: CGFloat = 4
     static let pointerHeight: CGFloat = 7
@@ -28,6 +29,15 @@ struct CrowdMarkerView: View {
             .padding(.vertical, 5)
             .background(Capsule().fill(fill))
             .overlay(Capsule().strokeBorder(.white, lineWidth: isSelected ? 3 : 2))
+            .overlay(alignment: .topTrailing) {
+                if isLive {
+                    Circle()
+                        .fill(Color(uiColor: UIColor(hex: 0xD93025)))
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 1.5))
+                        .frame(width: 10, height: 10)
+                        .offset(x: 3, y: -3)
+                }
+            }
 
             MarkerPointer()
                 .fill(fill)
@@ -59,16 +69,19 @@ enum CrowdMarkerRenderer {
         let category: PlaceCategory
         let busyness: Int?
         let isSelected: Bool
+        let isLive: Bool
         let scale: CGFloat
     }
 
     private static var cache: [Key: UIImage] = [:]
 
-    static func image(category: PlaceCategory, busyness: Int?, isSelected: Bool, scale: CGFloat) -> UIImage {
-        let key = Key(category: category, busyness: busyness, isSelected: isSelected, scale: scale)
+    static func image(category: PlaceCategory, busyness: Int?, isSelected: Bool, isLive: Bool = false, scale: CGFloat) -> UIImage {
+        let key = Key(category: category, busyness: busyness, isSelected: isSelected, isLive: isLive, scale: scale)
         if let cached = cache[key] { return cached }
 
-        let renderer = ImageRenderer(content: CrowdMarkerView(category: category, busyness: busyness, isSelected: isSelected))
+        let renderer = ImageRenderer(content: CrowdMarkerView(
+            category: category, busyness: busyness, isSelected: isSelected, isLive: isLive
+        ))
         renderer.scale = scale
         let image = renderer.uiImage ?? UIImage()
         if cache.count > 300 { cache.removeAll() }

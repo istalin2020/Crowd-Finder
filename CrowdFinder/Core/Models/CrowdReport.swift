@@ -2,6 +2,8 @@ import Foundation
 
 /// Where a crowd number came from. Shown to the user so they know how much to trust it.
 enum CrowdDataSource: String, Codable, Sendable {
+    /// Live reports from people at the place in the last 90 minutes.
+    case community
     /// Real-time foot traffic measured by BestTime right now.
     case live
     /// BestTime forecast for this hour, based on historical foot traffic.
@@ -11,19 +13,24 @@ enum CrowdDataSource: String, Codable, Sendable {
 
     var badgeTitle: String {
         switch self {
+        case .community: "LIVE REPORTS"
         case .live: "LIVE"
         case .forecast: "FORECAST"
-        case .estimate: "ESTIMATE"
+        case .estimate: "USUAL · NOT LIVE"
         }
     }
 
     var explanation: String {
         switch self {
+        case .community: "Live reports from people who are at this place right now (last 90 minutes, newest count most)."
         case .live: "Live foot traffic from BestTime."
-        case .forecast: "BestTime forecast for this hour, based on historical foot traffic."
-        case .estimate: "Estimated from typical crowd patterns for this type of place, its popularity and the local time. Add a BestTime API key in Settings for real foot-traffic data."
+        case .forecast: "BestTime forecast for this hour, based on historical foot traffic. Not live: events are not included."
+        case .estimate: "The usual crowd for this type of place at this hour – not a live count. Events such as shows or festivals are not included. Live reports from visitors replace it as soon as someone reports."
         }
     }
+
+    /// True for sources that measure the crowd right now.
+    var isLive: Bool { self == .community || self == .live }
 }
 
 /// Everything the app knows about the crowd at one place.
@@ -44,6 +51,10 @@ struct CrowdReport: Equatable, Sendable {
     let venueID: String?
     /// Optional note, e.g. why real data was not available.
     let note: String?
+    /// Recent visitor reports, when any exist.
+    let liveSummary: LiveCrowdSummary?
+    /// Where the hour-by-hour pattern (future hours, chart) comes from: forecast or estimate.
+    let patternSource: CrowdDataSource
 
     init(
         placeID: String,
@@ -54,7 +65,9 @@ struct CrowdReport: Equatable, Sendable {
         timeZone: TimeZone,
         generatedAt: Date,
         venueID: String? = nil,
-        note: String? = nil
+        note: String? = nil,
+        liveSummary: LiveCrowdSummary? = nil,
+        patternSource: CrowdDataSource? = nil
     ) {
         self.placeID = placeID
         self.source = source
@@ -65,6 +78,8 @@ struct CrowdReport: Equatable, Sendable {
         self.generatedAt = generatedAt
         self.venueID = venueID
         self.note = note
+        self.liveSummary = liveSummary
+        self.patternSource = patternSource ?? (source.isLive ? .forecast : source)
     }
 
     /// Builds a report for "now" from a weekly forecast.
@@ -104,7 +119,7 @@ struct CrowdReport: Equatable, Sendable {
 
     /// Difference between the live value and what is usual for this hour.
     var liveDelta: Int? {
-        guard source == .live, let usualBusyness else { return nil }
+        guard source.isLive, let usualBusyness else { return nil }
         return currentBusyness - usualBusyness
     }
 

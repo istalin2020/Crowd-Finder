@@ -29,6 +29,8 @@ struct CrowdAnnotation: Identifiable, Equatable {
     /// `nil` while the crowd level is loading.
     let busyness: Int?
     let isSelected: Bool
+    /// The value comes from live data (visitor reports or BestTime live).
+    var isLive = false
 
     var level: CrowdLevel? { busyness.map(CrowdLevel.init(busyness:)) }
 }
@@ -54,6 +56,23 @@ struct QuickSearch: Identifiable, Hashable {
     ]
 
     static let examples = ["Marina Beach", "Times Square", "Eiffel Tower", "Dubai Mall", "Tokyo"]
+}
+
+/// Whether the user can send a live crowd report for a place right now.
+enum ReportEligibility: Equatable {
+    case allowed
+    /// Live reports need a Firebase project ID (Settings).
+    case notConfigured
+    case locationUnknown
+    case tooFar(meters: Double)
+    case coolingDown(minutes: Int)
+}
+
+/// Feedback shown after sending a live report.
+struct ReportFeedback: Equatable {
+    let placeID: String
+    let text: String
+    let isError: Bool
 }
 
 enum PlaceSortOrder: String, CaseIterable, Identifiable {
@@ -87,6 +106,21 @@ final class CrowdMapViewModel {
     private(set) var liveLoadingPlaceIDs: Set<String> = []
     private(set) var accountProblem: String?
     private(set) var usesRealData: Bool
+
+    // MARK: Live reports
+    private(set) var supportsLiveReports: Bool
+    /// Problem reading live reports (e.g. database or rules not set up), if any.
+    private(set) var communityProblem: String?
+    private(set) var userLocation: Coordinate?
+    private(set) var submittingReportPlaceID: String?
+    private(set) var reportFeedback: ReportFeedback?
+    /// When live data was last refreshed automatically.
+    private(set) var lastLiveRefresh: Date?
+    /// You must be this close to a place to report its crowd (large parks and dams included).
+    static let reportRadiusMeters: Double = 1_500
+    /// One report per place per person every 10 minutes.
+    static let reportCooldown: TimeInterval = 10 * 60
+    static let liveRefreshInterval: UInt64 = 60
     /// 0 = now, otherwise hours from now ("time travel" through the forecast).
     var hourOffset = 0
     var sortOrder: PlaceSortOrder = .relevance
@@ -104,6 +138,7 @@ final class CrowdMapViewModel {
     @ObservationIgnored private var crowdService: CrowdService
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var crowdTask: Task<Void, Never>?
+    @ObservationIgnored private var liveRefreshTask: Task<Void, Never>?
 
     private static let recentSearchesKey = "recentSearches"
     private static let maxRecentSearches = 8
@@ -114,12 +149,14 @@ final class CrowdMapViewModel {
         self.placeSearch = placeSearch
         self.crowdService = Self.makeCrowdService(bestTimeKey: bestTimeKey)
         self.usesRealData = bestTimeKey != nil
+        self.supportsLiveReports = AppConfig.firebaseProjectID != nil
         self.recentSearches = UserDefaults.standard.stringArray(forKey: Self.recentSearchesKey) ?? []
     }
 
     private static func makeCrowdService(bestTimeKey: String?) -> CrowdService {
         CrowdService(
             bestTime: bestTimeKey.map { BestTimeClient(apiKeyPrivate: $0) },
+            community: AppConfig.firebaseProjectID.map { CommunityReportsClient(projectID: $0) },
             cache: ForecastCache()
         )
     }
@@ -149,7 +186,8 @@ final class CrowdMapViewModel {
                 name: place.name,
                 category: place.category,
                 busyness: busyness(for: place, at: now),
-                isSelected: place.id == selectedPlaceID
+                isSelected: place.id == selectedPlaceID,
+                isLive: hourOffset == 0 && reports[place.id]?.source.isLive == true
             )
         }
     }
@@ -317,6 +355,7 @@ final class CrowdMapViewModel {
                 }
             }
             accountProblem = await service.accountProblem
+            communityProblem = await service.communityProblem
         }
     }
 
@@ -338,9 +377,9 @@ final class CrowdMapViewModel {
         loadCrowd(for: stale, allowNetworkLimit: 0)
     }
 
-    /// Loads live data (and, if needed, a real forecast) for one place.
+    /// Loads live data (visitor reports, BestTime live and, if needed, a real forecast) for one place.
     func loadLiveData(for place: Place) {
-        guard usesRealData, !liveLoadingPlaceIDs.contains(place.id) else { return }
+        guard usesRealData || supportsLiveReports, !liveLoadingPlaceIDs.contains(place.id) else { return }
         liveLoadingPlaceIDs.insert(place.id)
         let service = crowdService
         Task {
@@ -348,14 +387,111 @@ final class CrowdMapViewModel {
             apply(report)
             liveLoadingPlaceIDs.remove(place.id)
             accountProblem = await service.accountProblem
+            communityProblem = await service.communityProblem
         }
     }
 
-    /// Call after the BestTime key changes in Settings.
+    // MARK: - Live updates
+
+    /// Refreshes live data every minute while the app is open.
+    func startLiveUpdates() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.liveRefreshInterval * 1_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                await self.refreshLiveData()
+            }
+        }
+    }
+
+    func stopLiveUpdates() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = nil
+    }
+
+    /// Re-reads visitor reports and recomputes "now" for every result. Uses no BestTime credits.
+    func refreshLiveData() async {
+        guard !places.isEmpty, loadingPlaceIDs.isEmpty else { return }
+        let service = crowdService
+        let now = Date()
+        for place in places.prefix(20) {
+            if Task.isCancelled { return }
+            let fresh = await service.report(for: place, at: now, allowNetwork: false)
+            // Keep a recent BestTime live value unless visitors reported something newer.
+            if let existing = reports[place.id], existing.source == .live, fresh.source != .community,
+               now.timeIntervalSince(existing.generatedAt) < 30 * 60 {
+                continue
+            }
+            apply(fresh)
+        }
+        lastLiveRefresh = now
+        communityProblem = await service.communityProblem
+    }
+
+    // MARK: - Live reports
+
+    func reportEligibility(for place: Place, now: Date = Date()) -> ReportEligibility {
+        guard supportsLiveReports else { return .notConfigured }
+        if let last = lastReportDates()[place.id], now.timeIntervalSince(last) < Self.reportCooldown {
+            let minutes = Int(((Self.reportCooldown - now.timeIntervalSince(last)) / 60).rounded(.up))
+            return .coolingDown(minutes: max(1, minutes))
+        }
+        guard let userLocation else { return .locationUnknown }
+        let distance = userLocation.distance(to: place.coordinate)
+        return distance <= Self.reportRadiusMeters ? .allowed : .tooFar(meters: distance)
+    }
+
+    /// Sends what the user sees at the place to everyone, live.
+    func submitLiveReport(_ level: CrowdLevel, for place: Place) {
+        guard reportEligibility(for: place) == .allowed, submittingReportPlaceID == nil else { return }
+        submittingReportPlaceID = place.id
+        reportFeedback = nil
+        let service = crowdService
+        Task {
+            do {
+                let report = try await service.submitLiveReport(level: level, for: place, at: Date())
+                apply(report)
+                rememberReport(for: place.id)
+                reportFeedback = ReportFeedback(
+                    placeID: place.id,
+                    text: "Thanks! Your report is live for everyone for the next 90 minutes.",
+                    isError: false
+                )
+            } catch {
+                reportFeedback = ReportFeedback(
+                    placeID: place.id,
+                    text: "Couldn't send your report: \(error.localizedDescription)",
+                    isError: true
+                )
+            }
+            submittingReportPlaceID = nil
+            communityProblem = await service.communityProblem
+        }
+    }
+
+    private static let lastReportsKey = "lastLiveReportDates"
+
+    private func lastReportDates() -> [String: Date] {
+        let stored = UserDefaults.standard.dictionary(forKey: Self.lastReportsKey) as? [String: Double] ?? [:]
+        return stored.mapValues { Date(timeIntervalSince1970: $0) }
+    }
+
+    private func rememberReport(for placeID: String) {
+        var stored = UserDefaults.standard.dictionary(forKey: Self.lastReportsKey) as? [String: Double] ?? [:]
+        let cutoff = Date().addingTimeInterval(-Self.reportCooldown).timeIntervalSince1970
+        stored = stored.filter { $0.value > cutoff }
+        stored[placeID] = Date().timeIntervalSince1970
+        UserDefaults.standard.set(stored, forKey: Self.lastReportsKey)
+    }
+
+    /// Call after the BestTime key or the live-reports project changes in Settings.
     func reloadCrowdSource() {
         let key = BestTimeKeyStore.currentKey
         crowdService = Self.makeCrowdService(bestTimeKey: key)
         usesRealData = key != nil
+        supportsLiveReports = AppConfig.firebaseProjectID != nil
+        communityProblem = nil
         accountProblem = nil
         if !places.isEmpty {
             reports = [:]
@@ -414,6 +550,7 @@ final class CrowdMapViewModel {
     }
 
     func userLocationUpdated(_ coordinate: Coordinate) {
+        userLocation = coordinate
         // Center on the user once, unless they already searched something.
         guard !hasCenteredOnUser, places.isEmpty else { return }
         hasCenteredOnUser = true
