@@ -99,7 +99,7 @@ final class NearbyDeviceScanner: NSObject, CBCentralManagerDelegate {
         rssi RSSI: NSNumber
     ) {
         let identifier = peripheral.identifier
-        let strength = RSSI.integerValue
+        let strength = RSSI.intValue
         // 127 means "not available"; ignore weak (far) signals.
         guard strength != 127, strength >= Self.minimumRSSI else { return }
         Task { @MainActor in self.seen.insert(identifier) }
