@@ -162,36 +162,44 @@ struct ContentView: View {
                 )
                 .padding(.horizontal, 16)
             } else {
-                if let title = model.resultsTitle {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        Text("\(model.places.count)")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        CrowdLegend()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .floatingPanel(cornerRadius: 14)
-                    .padding(.horizontal, 16)
-                }
+                // Stacked from the bottom edge up: title, time bar, then the result cards.
+                resultsCarousel
 
                 TimeSelector(hourOffset: $model.hourOffset, sortOrder: $model.sortOrder)
                     .padding(.horizontal, 16)
 
-                resultsCarousel
+                if let title = model.resultsTitle {
+                    resultsHeader(title)
+                }
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 4) // sits just above the home indicator on every iPhone
+    }
+
+    private func resultsHeader(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text("\(model.places.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            CrowdLegend()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingPanel(cornerRadius: 14)
+        .padding(.horizontal, 16)
     }
 
     private var resultsCarousel: some View {
         ScrollViewReader { reader in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                HStack(spacing: 12) {
                     ForEach(model.displayedPlaces) { place in
                         Button {
                             model.select(place)
@@ -212,6 +220,9 @@ struct ContentView: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 8) // room for shadows
             }
+            // Only as tall as the cards. Without this the scroll view grows to fill the whole
+            // free middle of the screen, which pushed the panels up and blocked map gestures.
+            .fixedSize(horizontal: false, vertical: true)
             .contentMargins(.horizontal, 16, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .onChange(of: model.selectedPlaceID) { _, id in

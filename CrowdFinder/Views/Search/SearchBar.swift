@@ -70,6 +70,8 @@ struct QuickSearchChips: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 6) // room for shadows
         }
+        // A horizontal ScrollView otherwise grows to fill all free height and blocks the map.
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, -16)
     }
 }

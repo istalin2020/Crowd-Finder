@@ -106,7 +106,9 @@ struct CrowdLegend: View {
                 HStack(spacing: 4) {
                     Circle().fill(level.color).frame(width: 8, height: 8)
                     Text(level.title)
+                        .lineLimit(1)
                 }
+                .fixedSize()
             }
         }
         .font(.caption2.weight(.medium))

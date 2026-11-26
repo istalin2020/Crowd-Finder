@@ -189,6 +189,7 @@ struct WelcomeCard: View {
                     }
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             if !usesRealData {
                 Button(action: onOpenSettings) {
